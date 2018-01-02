@@ -4,11 +4,17 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"encoding/json"
+	"io"
+	"fmt"
 )
 
-type Response struct {
+type ApiRequestBody struct {
+	ImageURL, ImageBody string
+}
+
+type ApiResponseBody struct {
 	Message string `json:"message"`
-	Result string `json:"result"`
+	Result  string `json:"result"`
 }
 
 func main() {
@@ -25,9 +31,19 @@ func HomeHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func ApiHandler(writer http.ResponseWriter, request *http.Request) {
+	decoder := json.NewDecoder(request.Body)
+	var apiRequestBody ApiRequestBody
+
+	if err := decoder.Decode(&apiRequestBody); err == io.EOF {
+		// ok
+	} else if err != nil {
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	encoder := json.NewEncoder(writer)
-	encoder.Encode(Response{
-		"execution info",
+	encoder.Encode(ApiResponseBody{
+		fmt.Sprintf("execution info for %s", apiRequestBody.ImageURL),
 		"parsed text",
 	})
 }
