@@ -4,6 +4,7 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"encoding/json"
+	"encoding/base64"
 	"io"
 	"fmt"
 	"os/exec"
@@ -35,36 +36,61 @@ func HomeHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Write([]byte("API Doc here"))
 }
 
-func ApiHandler(writer http.ResponseWriter, request *http.Request) {
+func ApiHandler(responseWriter http.ResponseWriter, request *http.Request) {
 	decoder := json.NewDecoder(request.Body)
 	var apiRequestBody ApiRequestBody
 
 	if err := decoder.Decode(&apiRequestBody); err == io.EOF {
 		// ok
 	} else if err != nil {
-		writer.WriteHeader(http.StatusBadRequest)
+		responseWriter.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	c1 := exec.Command("curl", "-s", apiRequestBody.ImageURL)
-	c2 := exec.Command("tesseract", "stdin", "stdout")
+	var (
+		result, message string
+		outputBuffer    bytes.Buffer
+	)
 
-	r, w := io.Pipe()
-	c1.Stdout = w
-	c2.Stdin = r
+	if apiRequestBody.ImageURL != "" {
+		curlCommand := exec.Command("curl", "-s", apiRequestBody.ImageURL)
+		tesseractCommand := exec.Command("tesseract", "stdin", "stdout")
 
-	var b2 bytes.Buffer
-	c2.Stdout = &b2
+		pipeReader, pipeWriter := io.Pipe()
+		curlCommand.Stdout = pipeWriter
+		tesseractCommand.Stdin = pipeReader
 
-	c1.Start()
-	c2.Start()
-	c1.Wait()
-	w.Close()
-	c2.Wait()
+		tesseractCommand.Stdout = &outputBuffer
 
-	encoder := json.NewEncoder(writer)
+		curlCommand.Start()
+		tesseractCommand.Start()
+		curlCommand.Wait()
+		pipeWriter.Close()
+		tesseractCommand.Wait()
+
+		result = strings.Trim(outputBuffer.String(), "\n")
+
+		message = fmt.Sprintf("scan image from %s", apiRequestBody.ImageURL)
+	} else if apiRequestBody.ImageBody != "" {
+		imageBody, _ := base64.StdEncoding.DecodeString(apiRequestBody.ImageBody)
+
+		tesseractCommand := exec.Command("tesseract", "stdin", "stdout")
+
+		tesseractCommand.Stdin = io.Reader(strings.NewReader(string(imageBody))) //r
+
+		tesseractCommand.Stdout = &outputBuffer
+
+		tesseractCommand.Start()
+		tesseractCommand.Wait()
+
+		result = strings.Trim(outputBuffer.String(), "\n")
+
+		message = "scan image from base64 body"
+	}
+
+	encoder := json.NewEncoder(responseWriter)
 	encoder.Encode(ApiResponseBody{
-		fmt.Sprintf("execution info for %s", apiRequestBody.ImageURL),
-		strings.Trim(b2.String(), "\n"),
+		message,
+		result,
 	})
 }
