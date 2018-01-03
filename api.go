@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"bytes"
 	"strings"
+	"log"
 )
 
 type ApiRequestBody struct {
@@ -29,7 +30,11 @@ func main() {
 
 	fmt.Println("Up and running, listening on 0.0.0.0:16680")
 
-	http.ListenAndServe(":16680", nil)
+	err := http.ListenAndServe(":16680", nil)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func HomeHandler(writer http.ResponseWriter, request *http.Request) {
