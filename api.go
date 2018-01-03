@@ -93,6 +93,7 @@ func ApiHandler(responseWriter http.ResponseWriter, request *http.Request) {
 		message = "scan image from base64 body"
 	}
 
+	responseWriter.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(responseWriter)
 	encoder.Encode(ApiResponseBody{
 		message,
