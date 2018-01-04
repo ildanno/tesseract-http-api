@@ -57,38 +57,14 @@ func ApiHandler(responseWriter http.ResponseWriter, request *http.Request) {
 		outputBuffer    bytes.Buffer
 	)
 
+	tesseractCommand := exec.Command("tesseract", "stdin", "stdout")
+
 	if apiRequestBody.ImageURL != "" {
-		curlCommand := exec.Command("curl", "-s", apiRequestBody.ImageURL)
-		tesseractCommand := exec.Command("tesseract", "stdin", "stdout")
-
-		pipeReader, pipeWriter := io.Pipe()
-		curlCommand.Stdout = pipeWriter
-		tesseractCommand.Stdin = pipeReader
-
-		tesseractCommand.Stdout = &outputBuffer
-
-		curlCommand.Start()
-		tesseractCommand.Start()
-		curlCommand.Wait()
-		pipeWriter.Close()
-		tesseractCommand.Wait()
-
-		result = strings.Trim(outputBuffer.String(), "\n")
+		result = parseFromURL(apiRequestBody, tesseractCommand, outputBuffer)
 
 		message = fmt.Sprintf("scan image from %s", apiRequestBody.ImageURL)
 	} else if apiRequestBody.ImageBody != "" {
-		imageBody, _ := base64.StdEncoding.DecodeString(apiRequestBody.ImageBody)
-
-		tesseractCommand := exec.Command("tesseract", "stdin", "stdout")
-
-		tesseractCommand.Stdin = io.Reader(strings.NewReader(string(imageBody))) //r
-
-		tesseractCommand.Stdout = &outputBuffer
-
-		tesseractCommand.Start()
-		tesseractCommand.Wait()
-
-		result = strings.Trim(outputBuffer.String(), "\n")
+		result = parseFromBase64(apiRequestBody, tesseractCommand, outputBuffer)
 
 		message = "scan image from base64 body"
 	}
@@ -99,4 +75,34 @@ func ApiHandler(responseWriter http.ResponseWriter, request *http.Request) {
 		message,
 		result,
 	})
+}
+
+func parseFromBase64(apiRequestBody ApiRequestBody, tesseractCommand *exec.Cmd, outputBuffer bytes.Buffer) string {
+	imageBody, _ := base64.StdEncoding.DecodeString(apiRequestBody.ImageBody)
+
+	tesseractCommand.Stdin = io.Reader(strings.NewReader(string(imageBody)))
+	tesseractCommand.Stdout = &outputBuffer
+
+	tesseractCommand.Start()
+	tesseractCommand.Wait()
+
+	return strings.Trim(outputBuffer.String(), "\n")
+}
+
+func parseFromURL(apiRequestBody ApiRequestBody, tesseractCommand *exec.Cmd, outputBuffer bytes.Buffer) string {
+	curlCommand := exec.Command("curl", "-s", apiRequestBody.ImageURL)
+
+	pipeReader, pipeWriter := io.Pipe()
+	curlCommand.Stdout = pipeWriter
+
+	tesseractCommand.Stdin = pipeReader
+	tesseractCommand.Stdout = &outputBuffer
+
+	curlCommand.Start()
+	tesseractCommand.Start()
+	curlCommand.Wait()
+	pipeWriter.Close()
+	tesseractCommand.Wait()
+
+	return strings.Trim(outputBuffer.String(), "\n")
 }
