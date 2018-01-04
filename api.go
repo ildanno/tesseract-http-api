@@ -54,17 +54,16 @@ func ApiHandler(responseWriter http.ResponseWriter, request *http.Request) {
 
 	var (
 		result, message string
-		outputBuffer    bytes.Buffer
 	)
 
 	tesseractCommand := exec.Command("tesseract", "stdin", "stdout")
 
 	if apiRequestBody.ImageURL != "" {
-		result = parseFromURL(apiRequestBody, tesseractCommand, outputBuffer)
+		result = parseFromURL(apiRequestBody.ImageURL, tesseractCommand)
 
 		message = fmt.Sprintf("scan image from %s", apiRequestBody.ImageURL)
 	} else if apiRequestBody.ImageBody != "" {
-		result = parseFromBase64(apiRequestBody, tesseractCommand, outputBuffer)
+		result = parseFromBase64(apiRequestBody.ImageBody, tesseractCommand)
 
 		message = "scan image from base64 body"
 	}
@@ -77,8 +76,10 @@ func ApiHandler(responseWriter http.ResponseWriter, request *http.Request) {
 	})
 }
 
-func parseFromBase64(apiRequestBody ApiRequestBody, tesseractCommand *exec.Cmd, outputBuffer bytes.Buffer) string {
-	imageBody, _ := base64.StdEncoding.DecodeString(apiRequestBody.ImageBody)
+func parseFromBase64(base64Image string, tesseractCommand *exec.Cmd) string {
+	var outputBuffer bytes.Buffer
+
+	imageBody, _ := base64.StdEncoding.DecodeString(base64Image)
 
 	tesseractCommand.Stdin = io.Reader(strings.NewReader(string(imageBody)))
 	tesseractCommand.Stdout = &outputBuffer
@@ -89,8 +90,10 @@ func parseFromBase64(apiRequestBody ApiRequestBody, tesseractCommand *exec.Cmd, 
 	return strings.Trim(outputBuffer.String(), "\n")
 }
 
-func parseFromURL(apiRequestBody ApiRequestBody, tesseractCommand *exec.Cmd, outputBuffer bytes.Buffer) string {
-	curlCommand := exec.Command("curl", "-s", apiRequestBody.ImageURL)
+func parseFromURL(imageURL string, tesseractCommand *exec.Cmd) string {
+	var outputBuffer bytes.Buffer
+
+	curlCommand := exec.Command("curl", "-s", imageURL)
 
 	pipeReader, pipeWriter := io.Pipe()
 	curlCommand.Stdout = pipeWriter
