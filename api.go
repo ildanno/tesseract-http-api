@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"strings"
 	"log"
+	"flag"
 )
 
 type ApiRequestBody struct {
@@ -23,14 +24,18 @@ type ApiResponseBody struct {
 }
 
 func main() {
+	networkAddress := flag.String("i", "0.0.0.0", "network address")
+	networkPort := flag.String("p", "80", "listening port")
+	flag.Parse()
+
 	router := mux.NewRouter()
 	router.HandleFunc("/", HomeHandler)
 	router.HandleFunc("/api", ApiHandler).Methods("POST")
 	http.Handle("/", router)
 
-	fmt.Println("Up and running, listening on 0.0.0.0:16680")
+	fmt.Println(fmt.Sprintf("Up and running, listening on %s:%s", *networkAddress, *networkPort))
 
-	err := http.ListenAndServe(":16680", nil)
+	err := http.ListenAndServe(*networkAddress + ":" + *networkPort, nil)
 
 	if err != nil {
 		log.Fatal(err)
